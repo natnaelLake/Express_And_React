@@ -1,10 +1,29 @@
 const User = require('../models/User')
+const Image = require('../models/Image')
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser')
+const multer = require('multer')
 const { set } = require('../app');
 const express = require('express')
 const app = express()
 app.use(cookieParser())
+const fs = require('fs')
+const path = require('path')
+
+
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'public/images');
+    },
+    filename: (req, file, cb) => {
+        cb(null,file.originalname)
+        console.log('welcome to the multer')
+    }
+});
+const upload = multer({ storage:storage})
+
+
 const handleErrors = (err)=>{
     console.log(err.message,err.code)
     let errors = {email:'',password:'',fristName:'',lastName:'',phone:''};
@@ -38,6 +57,7 @@ const creatToken = (id)=>{
         expiresIn:maxAge
     })
 }
+
 
 module.exports.signup_get = (req,res)=>{
     res.render('signup')
@@ -73,11 +93,39 @@ module.exports.login_post = async (req,res)=>{
         const auth = await User.login(email,password)
         console.log(auth)
         const token =  creatToken(auth._id)
-        res.cookie('jwt',token,{httpOnly:true,maxAge:maxAge*1000})
+        res.cookie('createdToken',token,{httpOnly:true})
         res.status(201).json({user:auth._id})
     }
     catch(err){
         const errors = handleErrors(err)
         res.status(400).json({errors})
     }
+}
+module.exports.gallery_get = (req,res)=>{
+    res.json('welcome to the gallery page')
+}
+module.exports.cards_get = async (req,res,next)=>{
+    const images = Image.find({},(err,image)=>{
+        res.status(200).json({ImageData:image})
+    })
+}
+module.exports.cards_post = upload.single('image'),async (req,res,next)=>{
+    const {title,description} = req.body
+    try{
+        console.log(req.body.image)
+        const images = await Image.create({
+            title,
+            description,
+            image:{
+                data: fs.readFileSync(path.join(__dirname + '/../public/images/' + req.body.image)),
+                contentType: req.file.mimetype        
+            }
+        })
+        res.status(201).json({image:images._id})
+    }
+    catch(err){
+        console.log(err)
+        res.status(400).json(err)
+    }
+    
 }
